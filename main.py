@@ -121,12 +121,12 @@ class Agent:
     """
     def __init__(self,symbol="X"):
 
-        epsilon = .1;
-        states  = None
+        self.epsilon = .1;
+        self.alpha = .1
         self.symbol = symbol
-        self.state_table = self.init_state_table(symbol)
+        self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
-    def game_vs_opponent(self,opponent:Opponent,symbol = "X"):
+    def game_vs_opponent(self,opponent:Opponent,symbol = "X",print_final_grid:bool =False):
         state = "---------"
         not_symbol = "O" if symbol=="X" else "X"
         game_ended = False
@@ -147,12 +147,17 @@ class Agent:
                     for transfo in temp_transformation:
                         proba_winning = max(proba_winning,self.state_table.get(transfo,0))
                     possible_state.append((temp,proba_winning))
+                previous_state = self.state_table_ref.get(state[:]) # store the last state (current) for training (unique key)
                 state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
+                state_unique_key = self.state_table_ref.get(state)
+                
+                self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
             else:
                 state = opponent.play(state=state,symbol=not_symbol)
             turn = not turn
-            game_ended = state.replace("-","&").replace(symbol,"&") in winning_state_list or state.replace("-","&").replace(not_symbol,"&") in winning_state_list or state.count("-")==0
-        pretty_print_grid(state)
+            game_ended = state.replace("-","&").replace(symbol,"&") in winning_state_list.get(not_symbol) or state.replace("-","&").replace(not_symbol,"&") in winning_state_list.get(symbol) or state.count("-")==0
+        if print_final_grid:
+            pretty_print_grid(state)
   
     def init_state_table(self,symbol="X"):
         """
@@ -162,9 +167,10 @@ class Agent:
                 - No more than 5 Xs and 4 0s (no more Os than Xs)
                 - Only one state per set of winning-independant transformation
             - Save the state in a hashmap with the probability of winning (1 if already won, 0 if lost, 0.5 else)
-        
+        Also returns a state X state hashmap that points from one state to its unique key in the state_table dict
         """
         state_dict = dict()
+        state_table_ref = dict()
         not_symbol = "O" if symbol=="X" else "X"
         cell_state = ["X","O","-"]
         all_line_states = []
@@ -181,17 +187,22 @@ class Agent:
         
         for state in all_grid_states:
             if not state.count("O")>4 and not state.count("X")>5 and not state.count("O")>state.count("X"):
+                # if this is a valid grid
                 proba_winning = winning_state.get(symbol).get(state.replace("-","&").replace(not_symbol,"&"))
                 proba_losing = winning_state.get(not_symbol).get(state.replace("-","&").replace(symbol,"&"))
                 if not (proba_winning and proba_losing):
+                    # if the grid is not a winning state for both "X" and "O"
                     winning = 1 if proba_winning else 0 if proba_losing else 0.5
                     rot = all_transformation(state)
                     if state not in grid_added:
                         state_dict[state] = winning
+                        state_table_ref[state] = state
+                        for r in rot:
+                            state_table_ref[r] = state
                     for r in rot:
                         grid_added.add(r)
 
-        return state_dict
+        return state_dict,state_table_ref
 
 # print([k for k,v in Agent().init_state_table().items() if v==1])
 
@@ -203,5 +214,11 @@ class Agent:
 
 a = Agent()
 o = Opponent(strategy=choice_at_random)
+a.game_vs_opponent(o,print_final_grid=False)
+a.game_vs_opponent(o,print_final_grid=False)
 
-a.game_vs_opponent(o)
+# N_game = 1000
+# for _ in range(N_game):
+#     a.game_vs_opponent(o,print_final_grid=False)
+
+print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
