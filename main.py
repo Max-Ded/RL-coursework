@@ -126,7 +126,22 @@ class Agent:
         self.symbol = symbol
         self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
-    def game_vs_opponent(self,opponent:Opponent,symbol = "X",print_final_grid:bool =False):
+    def test_performance(self,N_games,opponent:Opponent):
+        """
+        Make the agent play against an opponent with learning and returns the win/lose rate
+        """
+        sample_test = int(N_games)
+        win_rate =0
+        lose_rate = 0
+        for _ in range(sample_test):
+            game = self.game_vs_opponent(opponent,print_final_grid=False,learn=False)
+            if game=="X":
+                win_rate+=1
+            elif game=="O":
+                lose_rate+=1
+        return win_rate,lose_rate    
+
+    def game_vs_opponent(self,opponent:Opponent,symbol = "X",print_final_grid:bool =False,learn:bool=True):
         state = "---------"
         not_symbol = "O" if symbol=="X" else "X"
         game_ended = False
@@ -140,24 +155,43 @@ class Agent:
                 if len(empty_spaces)==0:
                     game_ended = True
                     break
-                for space in empty_spaces:
-                    temp = replace_in_str(state,space,symbol) # plays the legal move
-                    temp_transformation = all_transformation(temp) #get all the transformation of the new state
-                    proba_winning = 0
-                    for transfo in temp_transformation:
-                        proba_winning = max(proba_winning,self.state_table.get(transfo,0))
-                    possible_state.append((temp,proba_winning))
-                previous_state = self.state_table_ref.get(state[:]) # store the last state (current) for training (unique key)
-                state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
-                state_unique_key = self.state_table_ref.get(state)
                 
-                self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
+                previous_state = self.state_table_ref.get(state[:],state[:]) # store the last state (current) for training (unique key)
+                
+                if random.random()>self.epsilon:
+                    #With proba 1-e => we select the best possible move
+                    for space in empty_spaces:
+                        temp = replace_in_str(state,space,symbol) # plays the legal move
+                        temp_transformation = all_transformation(temp) #get all the transformation of the new state
+                        proba_winning = 0
+                        for transfo in temp_transformation:
+                            proba_winning = max(proba_winning,self.state_table.get(transfo,0))
+                        possible_state.append((temp,proba_winning))
+                    state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
+                else:
+                    #with proba e , we select a move at random to explore
+                    state = choice_at_random(state,self.symbol)
+                
+                if learn:
+                    #we update the table with lookback parameter alpha
+                    state_unique_key = self.state_table_ref.get(state)
+                    self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
             else:
                 state = opponent.play(state=state,symbol=not_symbol)
             turn = not turn
             game_ended = state.replace("-","&").replace(symbol,"&") in winning_state_list.get(not_symbol) or state.replace("-","&").replace(not_symbol,"&") in winning_state_list.get(symbol) or state.count("-")==0
         if print_final_grid:
             pretty_print_grid(state)
+        
+        symbol_winner =  state.replace("-","&").replace(not_symbol,"&") in winning_state_list.get(symbol)
+        not_symbol_winner =  state.replace("-","&").replace(symbol,"&") in winning_state_list.get(not_symbol)
+        if not symbol_winner and not not_symbol_winner:
+            #if nobody has won
+            return "-"
+        elif symbol_winner:
+            return symbol
+        else:
+            return not_symbol
   
     def init_state_table(self,symbol="X"):
         """
@@ -192,15 +226,19 @@ class Agent:
                 proba_losing = winning_state.get(not_symbol).get(state.replace("-","&").replace(symbol,"&"))
                 if not (proba_winning and proba_losing):
                     # if the grid is not a winning state for both "X" and "O"
-                    winning = 1 if proba_winning else 0 if proba_losing else 0.5
+                    winning = 1 if proba_winning else 0 if proba_losing else 0.5 #Initial value of the state
                     rot = all_transformation(state)
                     if state not in grid_added:
-                        state_dict[state] = winning
-                        state_table_ref[state] = state
+                        #if the state or any variation is never seen before
+                        state_dict[state] = winning #we add it in the state_table with its value
+                        state_table_ref[state] = state #we point to itself in the ref table
+                        grid_added.add(state)
                         for r in rot:
+                            #all the rotation will point to this state in the ref table
                             state_table_ref[r] = state
-                    for r in rot:
-                        grid_added.add(r)
+                        for r in rot:
+                            #we will have seen all the rotation
+                            grid_added.add(r)
 
         return state_dict,state_table_ref
 
@@ -212,13 +250,23 @@ class Agent:
 
 # pretty_print_grid(rotate_270(grid))
 
-a = Agent()
-o = Opponent(strategy=choice_at_random)
-a.game_vs_opponent(o,print_final_grid=False)
-a.game_vs_opponent(o,print_final_grid=False)
+if __name__=="__main__":
 
-# N_game = 1000
-# for _ in range(N_game):
-#     a.game_vs_opponent(o,print_final_grid=False)
+    a = Agent(symbol="X")
+    o = Opponent(strategy=choice_at_random)
 
-print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
+    sample_test = 1e2
+    win_rate,lose_rate = a.test_performance(sample_test,o)
+
+    print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
+    
+    N_game = int(1e5)
+    for _ in range(N_game):
+        a.game_vs_opponent(o,print_final_grid=False,learn=True)
+
+    win_rate,lose_rate = a.test_performance(sample_test,o)
+    print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
+    
+
+
+#print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
