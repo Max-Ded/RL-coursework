@@ -1,5 +1,6 @@
 import numpy as np
 import random
+from tqdm import tqdm
 
 grid = np.zeros((3,3),dtype=int)
 grid[1,1]=1
@@ -48,6 +49,19 @@ winning_state = { "X":{
     "&&O&&O&&O":1 }
 }
 
+def has_won(state,symbol):
+    for i in range(3):
+        if state[i]==symbol and state[3+i]==symbol and state[6+i]==symbol:
+            return True
+        if state[3*i:3*(i+1)]==symbol*3:
+            return True
+    if state[0]==symbol and state[4]==symbol and state[8]==symbol:
+        return True
+    if state[2]==symbol and state[4]==symbol and state[6]==symbol:
+        return True
+    return False
+
+
 #Winning states for "X"/"O" as a list
 winning_state_list = {k:list(v.keys()) for k,v in winning_state.items()}
 
@@ -94,10 +108,38 @@ def choice_at_random(state,symbol):
     """
     Given a state and symbol, plays at random on the grid and returns the resulting state
     """
-    move = random.sample([i for i in range(len(state)) if state[i]=="-"],1)
-    if len(move)==0:
+    empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
+    random.shuffle(empty_spaces)
+    if len(empty_spaces)==0:
         return state
-    return replace_in_str(state,move[0],symbol)
+    return replace_in_str(state,empty_spaces[0],symbol)
+
+def choice_attack_defense(state,symbol):
+    """
+    Given a state and symbol, defends if it is about to loose, attack if it can win and else plays randomly
+    """
+    not_symbol = "O" if symbol=="X" else "X"
+    empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
+    random.shuffle(empty_spaces)
+    for space in empty_spaces:
+        temp = replace_in_str(state,space,symbol=not_symbol)
+        if has_won(temp,not_symbol):
+            #if the state is winning for the opponent
+            return replace_in_str(state,space,symbol=symbol)
+    return choice_immediate_best(state,symbol=symbol)
+
+def choice_immediate_best(state,symbol):
+    """
+    Given a state and a symbol, will play at random except if there is a winning move
+    """
+    not_symbol = "O" if symbol=="X" else "X"
+    empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
+    random.shuffle(empty_spaces)
+    for space in empty_spaces:
+        temp = replace_in_str(state,space,symbol=symbol)
+        if has_won(temp,symbol=symbol):
+            return temp
+    return choice_at_random(state,symbol=symbol)
 
 class Opponent:
     """
@@ -120,9 +162,7 @@ class Agent:
     Autonomous Agent
     """
     def __init__(self,symbol="X"):
-
-        self.epsilon = .1;
-        self.alpha = .1
+        self.alpha = .2
         self.symbol = symbol
         self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
@@ -141,50 +181,56 @@ class Agent:
                 lose_rate+=1
         return win_rate,lose_rate    
 
-    def game_vs_opponent(self,opponent:Opponent,symbol = "X",print_final_grid:bool =False,learn:bool=True):
+    def train(self,opponent:Opponent,N_games:int,epsilon=0.1,symbol = "X"):
+        for step in tqdm(range(N_games+1)):
+            self.game_vs_opponent(opponent=opponent,symbol=symbol,epsilon = (epsilon*(1-step/N_games)))
+
+    def choose_best_move(self,state,symbol="X"):
+        empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
+        random.shuffle(empty_spaces)
+        possible_state= [] # contains [(nex_state,proba_this_state_is_winning) ... (...) ] will choose the argmax of proba winning
+        for space in empty_spaces:
+            temp = replace_in_str(state,space,symbol) # plays the legal move
+            unique_temp = self.state_table_ref.get(temp)
+            possible_state.append((temp,self.state_table.get(unique_temp)))
+        state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
+        return state
+
+    def game_vs_opponent(self,opponent:Opponent,symbol = "X",epsilon=0.1,print_final_grid:bool =False,learn:bool=True,print_game_history=False):
         state = "---------"
         not_symbol = "O" if symbol=="X" else "X"
         game_ended = False
         turn = symbol == "X"
+        game_history = []
         while not game_ended:
             
             if turn:
-                #Agent plays
-                empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
-                possible_state= [] # contains [(nex_state,proba_this_state_is_winning) ... (...) ] will choose the argmax of proba winning
-                if len(empty_spaces)==0:
-                    game_ended = True
-                    break
-                
+                #Agent plays                
                 previous_state = self.state_table_ref.get(state[:],state[:]) # store the last state (current) for training (unique key)
                 
-                if random.random()>self.epsilon:
+                if random.random()>epsilon:
                     #With proba 1-e => we select the best possible move
-                    for space in empty_spaces:
-                        temp = replace_in_str(state,space,symbol) # plays the legal move
-                        temp_transformation = all_transformation(temp) #get all the transformation of the new state
-                        proba_winning = 0
-                        for transfo in temp_transformation:
-                            proba_winning = max(proba_winning,self.state_table.get(transfo,0))
-                        possible_state.append((temp,proba_winning))
-                    state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
+                    state = self.choose_best_move(state,symbol=self.symbol)
                 else:
                     #with proba e , we select a move at random to explore
-                    state = choice_at_random(state,self.symbol)
-                
-                if learn:
-                    #we update the table with lookback parameter alpha
-                    state_unique_key = self.state_table_ref.get(state)
-                    self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
+                    state = choice_at_random(state,self.symbol)  
             else:
                 state = opponent.play(state=state,symbol=not_symbol)
+
+            if learn:
+                #we update the table with lookback parameter alpha
+                state_unique_key = self.state_table_ref.get(state)
+                self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
+            game_history.append(state)
             turn = not turn
-            game_ended = state.replace("-","&").replace(symbol,"&") in winning_state_list.get(not_symbol) or state.replace("-","&").replace(not_symbol,"&") in winning_state_list.get(symbol) or state.count("-")==0
+            game_ended = has_won(state,symbol=symbol) or has_won(state,symbol=not_symbol) or state.count("-")==0
         if print_final_grid:
             pretty_print_grid(state)
-        
-        symbol_winner =  state.replace("-","&").replace(not_symbol,"&") in winning_state_list.get(symbol)
-        not_symbol_winner =  state.replace("-","&").replace(symbol,"&") in winning_state_list.get(not_symbol)
+        if print_game_history:
+            for s in game_history:
+                pretty_print_grid(s)
+        symbol_winner =  has_won(state,symbol=symbol)
+        not_symbol_winner =  has_won(state,symbol=not_symbol)
         if not symbol_winner and not not_symbol_winner:
             #if nobody has won
             return "-"
@@ -220,10 +266,10 @@ class Agent:
                     all_grid_states.append("".join([l1,l2,l3]))
         
         for state in all_grid_states:
-            if not state.count("O")>4 and not state.count("X")>5 and not state.count("O")>state.count("X"):
+            if not state.count("O")>4 and not state.count("X")>5 and state.count("X") - state.count("O")<=2 and state.count("X") - state.count("O")>=0:
                 # if this is a valid grid
-                proba_winning = winning_state.get(symbol).get(state.replace("-","&").replace(not_symbol,"&"))
-                proba_losing = winning_state.get(not_symbol).get(state.replace("-","&").replace(symbol,"&"))
+                proba_winning = has_won(state,symbol=symbol)
+                proba_losing = has_won(state,symbol=not_symbol)
                 if not (proba_winning and proba_losing):
                     # if the grid is not a winning state for both "X" and "O"
                     winning = 1 if proba_winning else 0 if proba_losing else 0.5 #Initial value of the state
@@ -242,31 +288,24 @@ class Agent:
 
         return state_dict,state_table_ref
 
-# print([k for k,v in Agent().init_state_table().items() if v==1])
 
-# grid = [["X","X","O"],["X","O","O"],["O","X","X"]]
-# pretty_print_grid(grid)
-# grid_str = encode_state(grid)
-
-# pretty_print_grid(rotate_270(grid))
 
 if __name__=="__main__":
 
     a = Agent(symbol="X")
-    o = Opponent(strategy=choice_at_random)
+    o = Opponent(strategy=choice_attack_defense)
+    a.game_vs_opponent(o,print_final_grid=False,learn=True)
 
-    sample_test = 1e2
+    sample_test = 1e4
     win_rate,lose_rate = a.test_performance(sample_test,o)
 
     print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
     
-    N_game = int(1e5)
-    for _ in range(N_game):
-        a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    a.train(opponent=o,N_games=int(1e6))
 
     win_rate,lose_rate = a.test_performance(sample_test,o)
     print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
     
+    print(a.game_vs_opponent(o,print_game_history=True,learn=True))
 
-
-#print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
+    #print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
