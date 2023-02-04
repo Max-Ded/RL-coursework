@@ -80,24 +80,31 @@ Perfoms the 7 tranformation on the grid that conserve winning states
 """
 @type_conversion
 def rotate_270(state):
+    # a_{13}a_{23}a_{33}a_{12}a_{22}a_{32}a_{11}a_{21}a_{31}
     return f"{state[2]}{state[5]}{state[8]}{state[1]}{state[4]}{state[7]}{state[0]}{state[3]}{state[6]}"
 @type_conversion
 def rotate_180(state):
+    # a_{33}a_{32}a_{31}a_{23}a_{22}a_{21}a_{13}a_{12}a_{11}
     return f"{state[8]}{state[7]}{state[6]}{state[5]}{state[4]}{state[3]}{state[2]}{state[1]}{state[0]}"
 @type_conversion
 def rotate_90(state):
+    # a_{31}a_{21}a_{11}a_{22}a_{32}a_{12}a_{33}a_{23}a_{13}
     return f"{state[6]}{state[3]}{state[0]}{state[4]}{state[7]}{state[1]}{state[8]}{state[5]}{state[2]}"
 @type_conversion
 def mirror_diag_2(state):
+    # a_{33}a_{23}a_{13}a_{32}a_{22}a_{12}a_{31}a_{21}a_{11}
     return f"{state[8]}{state[5]}{state[2]}{state[7]}{state[4]}{state[1]}{state[6]}{state[3]}{state[0]}"
 @type_conversion
 def mirror_diag_1(state):
+    # a_{11}a_{21}a_{31}a_{12}a_{22}a_{32}a_{31}a_{32}a_{33}
     return f"{state[0]}{state[3]}{state[6]}{state[1]}{state[4]}{state[7]}{state[2]}{state[5]}{state[8]}"
 @type_conversion
 def mirror_y(state):
+    # a_{13}a_{12}a_{11}a_{23}a_{22}a_{21}a_{33}a_{32}a_{31}
     return f"{state[2]}{state[1]}{state[0]}{state[5]}{state[4]}{state[3]}{state[8]}{state[7]}{state[6]}"
 @type_conversion
 def mirror_x(state):
+    #a_{31}a_{32}a_{33}a_{21}a_{22}a_{23}a_{11}a_{12}a_{13}
     return f"{state[6]}{state[7]}{state[8]}{state[3]}{state[4]}{state[5]}{state[0]}{state[1]}{state[2]}"
 @type_conversion
 def all_transformation(state):
@@ -162,7 +169,7 @@ class Agent:
     Autonomous Agent
     """
     def __init__(self,symbol="X"):
-        self.alpha = .2
+        self.alpha = 2
         self.symbol = symbol
         self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
@@ -185,7 +192,7 @@ class Agent:
         for step in tqdm(range(N_games+1)):
             self.game_vs_opponent(opponent=opponent,symbol=symbol,epsilon = (epsilon*(1-step/N_games)))
 
-    def choose_best_move(self,state,symbol="X"):
+    def choose_best_move(self,state,symbol="X",print_step=False):
         empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
         random.shuffle(empty_spaces)
         possible_state= [] # contains [(nex_state,proba_this_state_is_winning) ... (...) ] will choose the argmax of proba winning
@@ -194,6 +201,13 @@ class Agent:
             unique_temp = self.state_table_ref.get(temp)
             possible_state.append((temp,self.state_table.get(unique_temp)))
         state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
+        if print_step:
+            print("Chosing between : ")
+            for g,s in possible_state:
+                pretty_print_grid(g)
+                print(s)
+                print("__")
+            print("___________")
         return state
 
     def game_vs_opponent(self,opponent:Opponent,symbol = "X",epsilon=0.1,print_final_grid:bool =False,learn:bool=True,print_game_history=False):
@@ -202,18 +216,18 @@ class Agent:
         game_ended = False
         turn = symbol == "X"
         game_history = []
+        previous_state= "---------"
         while not game_ended:
-            
             if turn:
                 #Agent plays                
                 previous_state = self.state_table_ref.get(state[:],state[:]) # store the last state (current) for training (unique key)
                 
                 if random.random()>epsilon:
                     #With proba 1-e => we select the best possible move
-                    state = self.choose_best_move(state,symbol=self.symbol)
+                    state = self.choose_best_move(state,symbol=self.symbol,print_step=print_game_history)
                 else:
                     #with proba e , we select a move at random to explore
-                    state = choice_at_random(state,self.symbol)  
+                    state = choice_attack_defense(state,self.symbol)  
             else:
                 state = opponent.play(state=state,symbol=not_symbol)
 
@@ -294,18 +308,31 @@ if __name__=="__main__":
 
     a = Agent(symbol="X")
     o = Opponent(strategy=choice_attack_defense)
-    a.game_vs_opponent(o,print_final_grid=False,learn=True)
-
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+    # random.seed(1)
+    # print("new game")
+    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
     sample_test = 1e4
     win_rate,lose_rate = a.test_performance(sample_test,o)
 
     print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
     
-    a.train(opponent=o,N_games=int(1e6))
+    a.train(opponent=o,N_games=int(1e5))
 
     win_rate,lose_rate = a.test_performance(sample_test,o)
     print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
     
     print(a.game_vs_opponent(o,print_game_history=True,learn=True))
 
-    #print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
+    print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
