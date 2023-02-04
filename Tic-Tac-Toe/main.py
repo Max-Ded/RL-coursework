@@ -169,7 +169,7 @@ class Agent:
     Autonomous Agent
     """
     def __init__(self,symbol="X"):
-        self.alpha = 2
+        self.alpha = 0.2
         self.symbol = symbol
         self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
@@ -178,19 +178,20 @@ class Agent:
         Make the agent play against an opponent with learning and returns the win/lose rate
         """
         sample_test = int(N_games)
+        not_symbol = "O" if self.symbol=="X" else "X"
         win_rate =0
         lose_rate = 0
         for _ in range(sample_test):
             game = self.game_vs_opponent(opponent,print_final_grid=False,learn=False)
-            if game=="X":
+            if game==self.symbol:
                 win_rate+=1
-            elif game=="O":
+            elif game==not_symbol:
                 lose_rate+=1
         return win_rate,lose_rate    
 
-    def train(self,opponent:Opponent,N_games:int,epsilon=0.1,symbol = "X"):
+    def train(self,opponent:Opponent,N_games:int,epsilon=0.1):
         for step in tqdm(range(N_games+1)):
-            self.game_vs_opponent(opponent=opponent,symbol=symbol,epsilon = (epsilon*(1-step/N_games)))
+            self.game_vs_opponent(opponent=opponent,epsilon = (epsilon*(1-step/N_games)))
 
     def choose_best_move(self,state,symbol="X",print_step=False):
         empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
@@ -210,8 +211,9 @@ class Agent:
             print("___________")
         return state
 
-    def game_vs_opponent(self,opponent:Opponent,symbol = "X",epsilon=0.1,print_final_grid:bool =False,learn:bool=True,print_game_history=False):
+    def game_vs_opponent(self,opponent:Opponent,epsilon=0.1,print_final_grid:bool =False,learn:bool=True,print_game_history=False):
         state = "---------"
+        symbol = self.symbol
         not_symbol = "O" if symbol=="X" else "X"
         game_ended = False
         turn = symbol == "X"
@@ -219,25 +221,24 @@ class Agent:
         previous_state= "---------"
         while not game_ended:
             if turn:
-                #Agent plays                
-                previous_state = self.state_table_ref.get(state[:],state[:]) # store the last state (current) for training (unique key)
-                
+                #Agent plays                                
                 if random.random()>epsilon:
                     #With proba 1-e => we select the best possible move
-                    state = self.choose_best_move(state,symbol=self.symbol,print_step=print_game_history)
+                    state = self.choose_best_move(state,symbol=symbol,print_step=print_game_history)
                 else:
                     #with proba e , we select a move at random to explore
-                    state = choice_attack_defense(state,self.symbol)  
+                    state = choice_at_random(state,self.symbol)  
             else:
                 state = opponent.play(state=state,symbol=not_symbol)
 
-            if learn:
-                #we update the table with lookback parameter alpha
-                state_unique_key = self.state_table_ref.get(state)
-                self.state_table[previous_state] = self.state_table[previous_state] + self.alpha * (self.state_table[state_unique_key] - self.state_table[previous_state])
             game_history.append(state)
             turn = not turn
             game_ended = has_won(state,symbol=symbol) or has_won(state,symbol=not_symbol) or state.count("-")==0
+        
+        if learn:
+            for i in range(len(game_history)-1,0,-1):
+                s,s_before = self.state_table_ref.get(game_history[i]),self.state_table_ref.get(game_history[i-1])
+                self.state_table[s_before] += self.alpha * (self.state_table.get(s) - self.state_table.get(s_before))
         if print_final_grid:
             pretty_print_grid(state)
         if print_game_history:
@@ -308,21 +309,7 @@ if __name__=="__main__":
 
     a = Agent(symbol="X")
     o = Opponent(strategy=choice_attack_defense)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
-    # random.seed(1)
-    # print("new game")
-    # a.game_vs_opponent(o,print_final_grid=False,learn=True)
+
     sample_test = 1e4
     win_rate,lose_rate = a.test_performance(sample_test,o)
 
@@ -333,6 +320,6 @@ if __name__=="__main__":
     win_rate,lose_rate = a.test_performance(sample_test,o)
     print(f"Win rate : {round(win_rate/sample_test*100,2)}% | Lose rate : {round(lose_rate/sample_test*100,2)}%")
     
-    print(a.game_vs_opponent(o,print_game_history=True,learn=True))
+    #print(a.game_vs_opponent(o,print_game_history=True,learn=True))
 
-    print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])
+    #print([(k,v) for k,v in a.state_table.items() if v>0.5 and v<1])

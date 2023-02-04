@@ -177,10 +177,10 @@ def qg():
     
     #The first test is a regular greedy algorithm (epsilon = 0.) with an optimistic value of Q0= 5
     e_greedy_sample_average = bandit_problem(n_arms,means= means.tolist(),Q0 = 0.,reward_function = reward_function,stationary = False,epsilon=0.1)
-    e_greedy_sample_average.run(100000)
+    e_greedy_sample_average.run(10000)
     
     e_greedy_step_param = bandit_problem(n_arms,means= means.tolist(),Q0 = 0.,reward_function = reward_function,epsilon=0.1,stationary=False,step_parameter=10)
-    e_greedy_step_param.run(100000)
+    e_greedy_step_param.run(10000)
     fig,axs = plt.subplots(1,2,figsize =(8,8),sharey=True)
 
     e_greedy_sample_average.plot_accuracy(axs[0])
