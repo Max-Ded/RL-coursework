@@ -6,14 +6,20 @@ from bandit import *
 
 
 def qf():
+    """
+    Function to answer question f) of the coursework
+    Testing the basic properties of a 10 arms bandit problem
+    """
     n_arms = 10 #number of arms
    
     means = np.random.normal(0.5,0.25,n_arms) #we draw their mean reward from a random distribution
     
+    #We can choose between a normal or bernoulli reward distribution
+
     # brandit_reward_func,fig_name = np.random.normal,"normale"
     brandit_reward_func,fig_name = bernoulli,"bernoulli",
 
-    reward_function = [reward(brandit_reward_func,m,0.2) for m in means] # Reward will be drawn from a normal distribution with variable mean and sigma 0.2
+    reward_function = [Reward(brandit_reward_func,m,0.2) for m in means] # Reward will be drawn from a normal distribution with variable mean and sigma 0.2
     
     #The first test is a regular greedy algorithm (epsilon = 0.) with an optimistic value of Q0= 5
     greedy = bandit_problem(n_arms,means= means.tolist(),Q0 = 5.,reward_function = reward_function,epsilon=0.0)
@@ -26,6 +32,8 @@ def qf():
     e_Greedy_0_1= bandit_problem(n_arms,means= means.tolist(),reward_function = reward_function,epsilon=0.1,c=2)
     e_Greedy_0_1.run(10000)
 
+
+    #We plot the results of the algorithms
     fig,axs = plt.subplots(3,1,figsize =(8,8) ,sharex = True)
 
     greedy.plot_accuracy(axs[0])
@@ -45,6 +53,10 @@ def qf():
     plt.show()
 
 def qg():
+    """
+    Function to answer question g) of the coursework
+    We challenge the non-stationarity properties by introducing normal noise to the rewards
+    """
     n_arms = 10 #number of arms
    
     means = np.random.normal(0.5,0.25,n_arms) #we draw their mean reward from a random distribution
@@ -52,14 +64,17 @@ def qg():
     # brandit_reward_func,fig_name = np.random.normal,"normale"
     brandit_reward_func,fig_name = bernoulli,"bernoulli",
 
-    reward_function = [reward(brandit_reward_func,m,0.2) for m in means] # Reward will be drawn from a normal distribution with variable mean and sigma 0.2
+    reward_function = [Reward(brandit_reward_func,m,0.2) for m in means] # Reward will be drawn from a normal distribution with variable mean and sigma 0.2
     
-    #The first test is a regular greedy algorithm (epsilon = 0.) with an optimistic value of Q0= 5
+    #First system is an epsilong-greedy algorithm with sample average method
     e_greedy_sample_average = bandit_problem(n_arms,means= means.tolist(),Q0 = 0.,reward_function = reward_function,stationary = False,epsilon=0.1)
     e_greedy_sample_average.run(10000)
     
+    #Second system is an epsilon-greedy algorithm with a fixed step-parameter (alpha = 0.1)
     e_greedy_step_param = bandit_problem(n_arms,means= means.tolist(),Q0 = 0.,reward_function = reward_function,epsilon=0.1,stationary=False,step_parameter=10)
     e_greedy_step_param.run(10000)
+
+    #We plot the results
     fig,axs = plt.subplots(1,2,figsize =(8,8),sharey=True)
 
     e_greedy_sample_average.plot_accuracy(axs[0])

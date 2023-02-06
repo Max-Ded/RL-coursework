@@ -8,6 +8,16 @@ class bandit_problem:
         Environnement set-up with n_arms bandit arm :
             Their disitrbution is :  N(mu_i,sigma) where means = [mu_1,...,...mu_n_arms]
                                   :  Bernoulli (mean) where means = [mu_1,...,...mu_n_arms]
+        
+        We have multiple parameters : 
+                n_arms : number of arms in the problem
+                mean : list of mean of the rewards distributions
+                reward_function : reward obj list to draw the rewards from
+                Q0 : optimistic initial value for the q function (initialize all the values to Q0)
+                epsilon : e-greedy algorithm, choose exploration over exploitation with e probability
+                c : Parameters for the UCB computation (no UCB if c is None)
+                step_parameter : step parameter for the learning process, if None will be set to standard 1/(n+1)
+                stationnary : if True we draw the reward according to the standard process, else we set the rewards as random walk with normal 0,0.01 increments
         """
         self.n_arms = n_arms
         self.means = means
@@ -34,7 +44,7 @@ class bandit_problem:
         return reward
 
     def draw_reward_with_noise(self,index):
-        # retrieve the reward obj associated with the bandit and draw a reward from it with the *draw* method
+        # retrieve the reward obj associated with the bandit and draw a reward according to a random walk
         reward = self.reward_function[index].get_random_valk_value() # Get the reward from this bandit arm
         self.reward_function[index].random_walk_increment() # add noise to the reward
         self.best_reward_list.append(max([self.reward_function[i].get_random_valk_value() for i in range(self.n_arms)])) # add the reward drawn for future plotting
@@ -54,7 +64,7 @@ class bandit_problem:
             best_bandit = [i for i in range(self.n_arms) if to_maximize[i]==max(to_maximize)]
             choice =   random.sample(best_bandit,1)[0]
        
-        reward = self.draw_reward(choice) if self.stationary else self.draw_reward_with_noise(choice)
+        reward = self.draw_reward(choice) if self.stationary else self.draw_reward_with_noise(choice) #If the process is stationnary we process the reward using the reward obj, else we use the random walk
 
         alpha = self.step_parameter if self.step_parameter else  (self.n[choice]+1) # Use the step parameter if given or else 1/(N_t(a)+1)
 
@@ -63,6 +73,7 @@ class bandit_problem:
         self.rewards = np.append(self.rewards,reward)
 
     def run(self,N):
+        #Simulate N rounds to learn from them
         for _ in range(N):
             self.round()
 

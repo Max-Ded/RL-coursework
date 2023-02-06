@@ -7,16 +7,20 @@ from tqdm import tqdm
 
 class Agent:
     """
-    Autonomous Agent
+    Autonomous Agent to play the tic-tac-toe
     """
     def __init__(self,symbol="X"):
+        """
+        Need to provide the symbol that the agent will play
+        At initialization the agent create its map of statex => value (loosing state are given a 0. value, winning state are given a 1. , the others are at 0.5)
+        """
         self.alpha = 0.2
         self.symbol = symbol
         self.state_table,self.state_table_ref = self.init_state_table(symbol)
 
     def test_performance(self,N_games,opponent:Opponent):
         """
-        Make the agent play against an opponent with learning and returns the win/lose rate
+        Make the agent play against an opponent without learning and returns the win/lose rate
         """
         sample_test = int(N_games)
         not_symbol = "O" if self.symbol=="X" else "X"
@@ -31,18 +35,25 @@ class Agent:
         return win_rate,lose_rate    
 
     def train(self,opponent:Opponent,N_games:int,epsilon=0.1, disable_tqdm=False,epsilon_const = None):
+        """
+        The agents plays for a given number of games and learns
+        The algorithm is either e-greedy (epsilon const is not None), or decaying e-greedy (epsilon_const is None and the training will go from epsilon to 0 in N_games)
+        """
         for step in tqdm(range(N_games+1),disable = disable_tqdm):
             e = epsilon_const if epsilon_const else (epsilon*(1-step/N_games))
             self.game_vs_opponent(opponent=opponent,epsilon = e)
 
     def choose_best_move(self,state,symbol="X",print_step=False):
+        """
+        For a given state, and a symbol, the agents refers to its stateXvalue map and choose its best move 
+        """
         empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
         random.shuffle(empty_spaces)
         possible_state= [] # contains [(nex_state,proba_this_state_is_winning) ... (...) ] will choose the argmax of proba winning
         for space in empty_spaces:
             temp = replace_in_str(state,space,symbol) # plays the legal move
             unique_temp = self.state_table_ref.get(temp)
-            possible_state.append((temp,self.state_table.get(unique_temp)))
+            possible_state.append((temp,self.state_table.get(unique_temp))) #append the move and its supposed value to the list of possibilites
         state = sorted(possible_state,key = lambda k : k[1],reverse=True)[0][0] #get the argmax of proba_winning (by sorting along the axis 1 reversed)
         if print_step:
             print("Chosing between : ")
@@ -54,6 +65,13 @@ class Agent:
         return state
 
     def game_vs_opponent(self,opponent:Opponent,epsilon=0.1,print_final_grid:bool =False,learn:bool=True,print_game_history=False):
+        """
+        The agents plays against an opponent from the init state to the final state
+        The exploitation/exploration trade-off is given by the epsilon factor
+        it can use this game to amend its stateXvalue map (if learn is True)
+
+        Note : the X always plays first (no matter the symbol of the Agent)
+        """
         state = "---------"
         symbol = self.symbol
         not_symbol = "O" if symbol=="X" else "X"
