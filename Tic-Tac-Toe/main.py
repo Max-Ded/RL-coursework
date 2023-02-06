@@ -2,6 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from agent import *
 from opponent import *
+import os
+
+def clear_csl():
+    os.system('cls')
 
 def evalute_perf():
     a = Agent(symbol="X")
@@ -50,8 +54,10 @@ def plot_accuracy_evolution(ax,symbol,opponent,N = 10000,n_points = 25):
 
     return ax
 
-if __name__=="__main__":
-
+def test_1():
+    """
+    Plot the evolution of the accuracy in two sample cases
+    """
     fig,axs = plt.subplots(2,1,figsize=(16,8),sharex=True)
 
     axs[0] = plot_accuracy_evolution(axs[0],"X",Opponent(choice_attack_defense),N=2500,n_points=200)
@@ -61,3 +67,81 @@ if __name__=="__main__":
     axs[1].set_title("Playing the 'O' vs Type III opponent")
 
     plt.show()
+
+def test_2():
+    """
+    Train an agent one one type of opponent and evaluate its performance against another
+    """
+    n_test = 1000
+    n_train = 10000
+    opponents = [Opponent(choice_at_random),Opponent(choice_immediate_best),Opponent(choice_attack_defense)]
+    for symbol in ["X","O"]:
+        for i_train,o_train in enumerate(opponents):
+            for i_test,o_test in enumerate(opponents):
+                a = Agent(symbol)
+                a.train(o_train,n_train,disable_tqdm=True)
+                w,l = a.test_performance(n_test,o_test)
+                t = n_test-w-l
+                print(f"Playing {symbol} training on Type I{'I'*i_train} testing on Type I{'I'*i_test} (W|L|T): {round(w/n_test*100,2)}%|{round(l/n_test*100,2)}%|{round(t/n_test*100,2)}%")
+            print("\n")
+
+def play_against_agent(agent : Agent = None):
+    
+    if agent is None:
+        t = ""
+        opponents = [Opponent(choice_at_random),Opponent(choice_immediate_best),Opponent(choice_attack_defense)]
+        while t not in ["I","II","III"]:
+            t = input("Train the agent against oponent of type I/II/III : ")
+        symbol = ""
+        while symbol not in ["X","O"]:
+            symbol = input("Play as X/O : ")
+        not_symbol = "O" if symbol=="X" else "X"
+        o = opponents[["I","II","III"].index(t)]
+        agent = Agent(not_symbol)
+        agent.train(opponent=o,N_games = 10000)
+    else:
+        not_symbol = agent.symbol
+        symbol = "O" if not_symbol=="X" else "X"
+    state = "---------"
+    count = 0
+    turn = symbol=="X"
+    while count<9 and not has_won(state,symbol) and not has_won(state,not_symbol):
+        clear_csl()
+        pretty_print_grid(state,numbers=True)
+        if turn:
+            move = input("Case number to play (1/2/.../9) : ")
+            if move in ["1","2","3","4","5","6","7","8","9"]:
+                if state[int(move)-1]=="-":
+                    state = replace_in_str(state,int(move)-1,symbol)
+                    turn = not turn
+        else:
+            state = agent.choose_best_move(state,not_symbol)
+            turn = not turn
+        count +=1
+    clear_csl()
+    pretty_print_grid(state,numbers=True)
+    if has_won(symbol=symbol,state=state):
+        print("You have won !")
+    elif has_won(symbol=not_symbol,state=state):
+        print("Agent has won")
+    else:
+        print("Tie !")
+
+    return agent
+
+
+if __name__=="__main__":
+    agent = None
+    new_game = "Y"
+    while new_game=="Y":
+        new_game = ""
+        agent = play_against_agent(agent=agent)
+        while new_game not in ["Y","N"]:
+            new_game = input("Play again (Y/N) : ")
+        if new_game == "N":
+            break
+        discard_agent = ""
+        while discard_agent not in ["Y","N"]:
+            discard_agent = input("Discard Agent (Y/N) : ")
+        if discard_agent=="Y":
+            agent = None

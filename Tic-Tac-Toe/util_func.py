@@ -1,4 +1,5 @@
 import random
+from colorama import Fore,Style
 
 def encode_state(grid:list):
     """
@@ -10,13 +11,17 @@ def decode_state(grid:str):
     Takes the char[9] representation => return grid as 3x3 Array
     """
     return [list(grid[:3]),list(grid[3:6]),list(grid[6:])]
-def pretty_print_grid(grid):
+def pretty_print_grid(grid,numbers=False):
     """
     Takes the grid (list or string representation) and prints it in the console (if string will convert to list before printing)
     """
     if type(grid)==str:
-        pretty_print_grid(decode_state(grid))
+        pretty_print_grid(decode_state(grid),numbers)
     else:
+        if numbers:
+            # print the cell linear/flat index instead of a '-'
+            grid = [[x if x!="-" else str(j+1+3*i) for j,x in enumerate(g)] for i,g in enumerate(grid)]
+        grid = [[Fore.RED + x + Style.RESET_ALL if x=="X" else Fore.BLUE + x + Style.RESET_ALL if x=="O" else x for j,x in enumerate(g)] for i,g in enumerate(grid)]
         print("|".join(grid[0]))
         print("|".join(grid[1]))
         print("|".join(grid[2]),end="\n\n")
