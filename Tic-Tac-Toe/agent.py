@@ -1,5 +1,5 @@
 from util_func import *
-from opponent import Opponent,choice_attack_defense
+from opponent import Opponent
 import numpy as np
 import random
 from tqdm import tqdm
@@ -30,9 +30,10 @@ class Agent:
                 lose_rate+=1
         return win_rate,lose_rate    
 
-    def train(self,opponent:Opponent,N_games:int,epsilon=0.1):
-        for step in tqdm(range(N_games+1)):
-            self.game_vs_opponent(opponent=opponent,epsilon = (epsilon*(1-step/N_games)))
+    def train(self,opponent:Opponent,N_games:int,epsilon=0.1, disable_tqdm=False,epsilon_const = None):
+        for step in tqdm(range(N_games+1),disable = disable_tqdm):
+            e = epsilon_const if epsilon_const else (epsilon*(1-step/N_games))
+            self.game_vs_opponent(opponent=opponent,epsilon = e)
 
     def choose_best_move(self,state,symbol="X",print_step=False):
         empty_spaces = [i for i in range(len(state)) if state[i]=="-"]
