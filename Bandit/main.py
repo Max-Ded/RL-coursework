@@ -84,6 +84,46 @@ def qg():
     axs[1].set_title(r"Step parameter : 1/$\alpha$=10")
     plt.show()
 
-if __name__=="__main__":
+def get_user_input(values:list,prompt:str,t=str):
+    res = "@!#/\n*"
+    while res not in values:
+        res = input(prompt)
+        if res == "" and None in values:
+            #Allow none answmer
+            return None
+        if type!=str:
+            try:
+                res = t(res)
+            except:
+                pass
+    return res
 
-    qf()
+def bandit_user_input_script():
+    print("Welcome the N-bandit problem\n")
+    n_arms = get_user_input(list(range(1,101)),"How many arms (positive integer) : ",t=int)
+
+    means = np.random.normal(0.5,0.25,n_arms)
+    
+    stationary = get_user_input(["Y","N"],"Stationary setting (Y/N) : ")
+    stationary = stationary == "Y"
+    if stationary:
+        distribution = get_user_input(["B","N"],"Reward distribution (B/N) : ")
+        brandit_reward_func = bernoulli if distribution=="B" else np.random.normal
+        reward_function = [Reward(brandit_reward_func,m,0.2) for m in means]
+    else:
+        reward_function = [Reward(bernoulli,m,0.2) for m in means] #if non-stationary, the reward functions don't impact the result
+
+    epsilon = get_user_input([x/10 for x in range(10)],"Epsilon factor (0./0.1/../0.9) : ",float)
+    Q0 = get_user_input(list(range(10)),"Optimistic starting value (0/1/../10) : ",int)
+    c = get_user_input([x * 0.5 for x in range(3,21)] + [None],"UCB parameters c (None/1.5/2.0/2.5/.../10) : ",float)
+    step = get_user_input(list(range(10,110,10)) + [None],"Inverse step-parameters alpha (None/10/20/../100) : ",float)
+    bandit = bandit_problem(n_arms=n_arms,means=means,reward_function=reward_function,Q0=Q0,epsilon=epsilon,c=c,step_parameter=step,stationary=stationary)
+    bandit.run(10000)
+    fig,ax = plt.subplots(1,1,figsize =(8,8))
+    ax = bandit.plot_accuracy(ax)  
+    ax.set_title(r"{}-arms Bandit problem : {}stationnary , $\epsilon=${} , $\alpha=${},c={},$Q_0=${}".format(n_arms,'' if stationary else 'non-',epsilon,step if step else 'sample-average',c if c else "no UCB",Q0))      
+    plt.show()
+
+if __name__=="__main__":
+    
+    bandit_user_input_script()
