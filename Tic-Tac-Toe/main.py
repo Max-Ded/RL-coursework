@@ -91,7 +91,7 @@ def play_against_agent(agent : Agent = None):
         t = ""
         opponents = [Opponent(choice_at_random),Opponent(choice_immediate_best),Opponent(choice_attack_defense)]
         while t not in ["I","II","III"]:
-            t = input("Train the agent against oponent of type I/II/III : ")
+            t = input("Train the agent against opponent of type I/II/III : ")
         symbol = ""
         while symbol not in ["X","O"]:
             symbol = input("Play as X/O : ")
@@ -131,6 +131,7 @@ def play_against_agent(agent : Agent = None):
 
 
 if __name__=="__main__":
+    print("\nWelcome to Tic-Tac-Toe in reinforcement learning !\n")
     agent = None
     new_game = "Y"
     while new_game=="Y":
